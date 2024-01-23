@@ -1,0 +1,95 @@
+﻿@page "/"
+@inject ISnackbar Snackbar
+@inject IOptions<HubCfg> HubCfg
+
+<PageTitle>Home</PageTitle>
+
+<MudTextField Class="my-3" @bind-Value="PlayerName" Label="Player Name" />
+
+@switch (State) {
+    case EGameState.Idle:
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="SearchMatch">
+            Find Match
+        </MudButton>
+        break;
+    case EGameState.WaitingForPlayer:
+        <MudAlert Severity="Severity.Info">
+            Waiting for player...
+        </MudAlert>
+        break;
+    case EGameState.InGame:
+        <MudAlert Severity="Severity.Success">
+            Game found!
+        </MudAlert>
+        break;
+    case EGameState.JoiningGame:
+        <MudAlert Severity="Severity.Info">
+            Joining game...
+        </MudAlert>
+        break;
+    default:
+        throw new ArgumentOutOfRangeException();
+}
+
+
+@code {
+
+    public EGameState State { get; set; }
+
+    public string PlayerName { get; set; } = null!;
+
+    private HubConnection? _hubConnection;
+
+    protected override async Task OnInitializedAsync() {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{HubCfg.Value.Url}/matchmaking")
+            .Build();
+
+        _hubConnection.On<string>("MatchFound", OnGameFound);
+
+        await _hubConnection.StartAsync();
+    }
+
+    private async Task JoinGame(string matchId) {
+        if (_hubConnection != null) await _hubConnection.DisposeAsync();
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{HubCfg.Value.Url}/game")
+            .Build();
+
+        _hubConnection.On<string>("PlayerJoined", OnPlayerJoined);
+        _hubConnection.On<string, object>("ReceiveGameUpdate", OnGameUpdated);
+
+        await _hubConnection.StartAsync();
+        
+        await _hubConnection.InvokeAsync("JoinGame", matchId, PlayerName);
+    }
+
+    private async Task OnGameUpdated(string userId, object gameData) {
+    }
+
+    private async Task OnPlayerJoined(string playerId) {
+    }
+
+    private async Task OnGameFound(string matchId) {
+        State = EGameState.JoiningGame;
+        await InvokeAsync(StateHasChanged);
+        await JoinGame(matchId);
+        State = EGameState.InGame;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SearchMatch() {
+        if (string.IsNullOrEmpty(PlayerName) || string.IsNullOrWhiteSpace(PlayerName)) {
+            Snackbar.Add("Please enter a valid player name", Severity.Error);
+            return;
+        }
+        if (_hubConnection == null) return;
+
+        await _hubConnection.InvokeAsync("JoinQueue");
+        State = EGameState.WaitingForPlayer;
+        await InvokeAsync(StateHasChanged);
+    }
+
+}

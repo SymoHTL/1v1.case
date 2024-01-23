@@ -6,15 +6,22 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsAspireHost>true</IsAspireHost>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\Aspire.Web\Aspire.Web.csproj" />
         <ProjectReference Include="..\Aspire.ApiService\Aspire.ApiService.csproj"/>
-        <ProjectReference Include="..\Aspire.Web\Aspire.Web.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Aspire.Hosting" Version="8.0.0-preview.2.23619.3"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
     </ItemGroup>
 
 </Project>
