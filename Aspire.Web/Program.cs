@@ -1,4 +1,3 @@
-
 using Aspire.Web;
 using Aspire.Web.Entities;
 using Microsoft.AspNetCore.Components.Web;
@@ -11,9 +10,12 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddMudServices();
 
-var hubUrl = builder.Configuration["Url"] ?? throw new Exception("No URL specified");
-builder.Services.Configure<HubCfg>(o => o.Url = hubUrl);
+builder.Services.Configure<HubCfg>(o => o.Url = builder.Configuration["hub_url"] ?? throw new Exception("hub_url not found"));
 
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+builder.Services.AddScoped(sp => new HttpClient {
+    BaseAddress = new Uri(builder.Configuration["csgo_url"] ??
+                          throw new Exception("csgo_url not found"))
+});
+
 
 await builder.Build().RunAsync();

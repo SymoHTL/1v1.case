@@ -15,6 +15,10 @@ builder.Services.AddDbContextFactory<ModelDbContext>(options =>
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IPlayerRepository, PlayerRepository>();
 
+builder.Services.AddScoped(c => new HttpClient() {
+    BaseAddress = new Uri(builder.Configuration["csgo_url"] ?? throw new Exception("csgo_url not found"))
+});
+
 builder.Services.AddCors();
 
 var app = builder.Build();
