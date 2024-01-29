@@ -3,7 +3,8 @@ using Shared.Entities;
 
 namespace Aspire.ApiService.Services;
 
-public class GameHub(ILogger<GameHub> logger, IPlayerRepository playerRepository, HttpClient csgoClient) : Hub<IGameClient> {
+public class GameHub(ILogger<GameHub> logger, IPlayerRepository playerRepository, HttpClient csgoClient)
+    : Hub<IGameClient> {
     public async Task JoinGame(string gameId, string playerName) {
         logger.LogInformation("Player {ConnectionId} joined game {GameId}", Context.ConnectionId, gameId);
         var p = await playerRepository.AddPlayer(new Player(Context.ConnectionId, gameId, playerName));
@@ -11,7 +12,7 @@ public class GameHub(ILogger<GameHub> logger, IPlayerRepository playerRepository
         await Groups.AddToGroupAsync(Context.ConnectionId, gameId);
         await Clients.Group(gameId).PlayerJoined(p);
     }
-    
+
     public async Task SetBet(float bet) {
         var player = await playerRepository.GetPlayer(Context.ConnectionId);
         if (player == null) return;
@@ -19,7 +20,7 @@ public class GameHub(ILogger<GameHub> logger, IPlayerRepository playerRepository
         await playerRepository.UpdatePlayer(player);
         await Clients.Group(player.GameId).ReceiveBetChange(Context.ConnectionId, bet);
     }
-    
+
     public async Task SetCase(string caseId) {
         var player = await playerRepository.GetPlayer(Context.ConnectionId);
         if (player == null) return;
@@ -27,7 +28,7 @@ public class GameHub(ILogger<GameHub> logger, IPlayerRepository playerRepository
         await playerRepository.UpdatePlayer(player);
         await Clients.Group(player.GameId).ReceiveCaseChange(Context.ConnectionId, caseId);
     }
-    
+
     public async Task SetReady(bool ready) {
         var player = await playerRepository.GetPlayer(Context.ConnectionId);
         if (player == null) return;
@@ -49,18 +50,19 @@ public class GameHub(ILogger<GameHub> logger, IPlayerRepository playerRepository
         await Clients.Group(groupId).ReceiveReadyReset(players.Select(p => p.ConnId).ToList(), false);
     }
 
-    private async Task<Dictionary<string, string>> SimulateCases(List<Player> players) {
+    private async Task<Dictionary<string, List<string>>> SimulateCases(List<Player> players) {
         var cases = await csgoClient.GetFromJsonAsync<List<Case>>("crates.json");
-        if (cases is null) return new Dictionary<string, string>();
+        if (cases is null) return new Dictionary<string, List<string>>();
         cases = cases.Where(c => c.Name.Contains("case", StringComparison.OrdinalIgnoreCase)).ToList();
-        
-        var results = new Dictionary<string, string>();
+
+        var results = new Dictionary<string, List<string>>();
         foreach (var player in players) {
-            var @case = cases.FirstOrDefault(c => c.Id == player.CaseId);
-            if (@case is null) continue;
-            results.Add(player.ConnId, @case.SimulateOpening());
+            var c = cases.FirstOrDefault(c => c.Id == player.CaseId);
+            if (c is null) continue;
+            var items = Enumerable.Range(0, 30).Select(_ => c.SimulateOpening()).ToList();
+            results.Add(player.ConnId, items);
         }
-        
+
         return results;
     }
 

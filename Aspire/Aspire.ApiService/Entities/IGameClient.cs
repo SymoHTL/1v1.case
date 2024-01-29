@@ -11,5 +11,5 @@ public interface IGameClient {
     Task ReceiveCaseChange(string userId, string caseId);
     Task ReceiveReadyChange(string userId, bool ready);
     Task ReceiveReadyReset(List<string> userId, bool ready);
-    Task StartRound(Dictionary<string, string> results);
+    Task StartRound(Dictionary<string, List<string>> results);
 }

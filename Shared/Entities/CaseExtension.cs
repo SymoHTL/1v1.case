@@ -9,17 +9,17 @@ public static class CaseExtension {
             <= Rarity.MilSpecChance + Rarity.RestrictedChance => Rarity.Restricted,
             <= Rarity.MilSpecChance + Rarity.RestrictedChance + Rarity.ClassifiedChance => Rarity.Classified,
             <= Rarity.MilSpecChance + Rarity.RestrictedChance + Rarity.ClassifiedChance + Rarity.CovertChance => Rarity.Covert,
-            //<= Rarity.MilSpecChance + Rarity.RestrictedChance + Rarity.ClassifiedChance + Rarity.CovertChance + Rarity.SpecialChance => Rarity.Special,
-            _ => throw new Exception("Rarity not found")
+            <= Rarity.MilSpecChance + Rarity.RestrictedChance + Rarity.ClassifiedChance + Rarity.CovertChance + Rarity.SpecialChance => Rarity.Special,
+            _ => throw new Exception($"Rarity not found for {random}")
         };
 
         if (rarityName == Rarity.Special){
-            var rareSkins = c.RareSkins.Where(s => s.Rarity.Name == rarityName).ToList();
+            var rareSkins = c.RareSkins.Where(s => s.Rarity.Id == Rarity.SpecialName).ToList();
             var rareSkin = rareSkins[new Random().Next(rareSkins.Count)];
             return rareSkin.Id;
         }
 
-        var skins = c.Skins.Where(s => s.Rarity.Name == rarityName).ToList();
+        var skins = c.Skins.Where(s => s.Rarity.Id == rarityName).ToList();
         var skin = skins[new Random().Next(skins.Count)];
         return skin.Id;
     }

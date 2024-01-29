@@ -1,6 +1,6 @@
 ﻿namespace Shared.Entities;
 
-public class AnimationCase(string playerName, Item[] skins) {
-   public string PlayerName { get; set; } = playerName;
+public class AnimationCase(Player player, Item[] skins) {
+   public Player Player { get; set; } = player;
    public Item[] Skins { get; set; } = skins;
 }

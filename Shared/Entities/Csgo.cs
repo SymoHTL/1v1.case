@@ -25,15 +25,16 @@ public record Rarity(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("color")] string Color) {
-    public const string MilSpec = "Mil-Spec Grade";
+    public const string MilSpec = "rarity_rare_weapon";
     public const float MilSpecChance = 79.92f;
-    public const string Restricted = "Restricted";
+    public const string Restricted = "rarity_mythical_weapon";
     public const float RestrictedChance = 15.98f;
-    public const string Classified = "Classified";
+    public const string Classified = "rarity_legendary_weapon";
     public const float ClassifiedChance = 3.2f;
-    public const string Covert = "Covert";
+    public const string Covert = "rarity_ancient_weapon";
     public const float CovertChance = 0.64f;
-    public const string Special = "Extraordinary";
+    public const string Special = "Special";
+    public const string SpecialName = "rarity_ancient_weapon";
     public const float SpecialChance = 0.26f;
 }
 
