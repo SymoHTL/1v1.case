@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.SignalR;
-
-namespace Aspire.ApiService.Services;
+﻿namespace Aspire.ApiService.Services;
 
 public class MatchmakingHub(ILogger<MatchmakingHub> logger)
     : Hub<IMatchmakingClient> {

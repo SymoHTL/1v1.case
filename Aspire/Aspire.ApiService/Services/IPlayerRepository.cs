@@ -1,6 +1,4 @@
-﻿using Shared.Entities;
-
-namespace Aspire.ApiService.Services;
+﻿namespace Aspire.ApiService.Services;
 
 public interface IPlayerRepository {
     

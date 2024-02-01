@@ -1,6 +1,5 @@
 ﻿using Aspire.ApiService.Configuration;
 using Microsoft.EntityFrameworkCore;
-using Shared.Entities;
 
 namespace Aspire.ApiService.Services;
 

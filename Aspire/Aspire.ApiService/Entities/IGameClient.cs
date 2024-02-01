@@ -1,8 +1,6 @@
-﻿using Shared.Entities;
+﻿namespace Aspire.ApiService.Entities;
 
-namespace Aspire.ApiService.Entities;
-
-public interface IGameClient {
+public interface ICsgoClient {
     Task PlayerJoined(Player player);
     Task PlayerLeft(string userId);
     

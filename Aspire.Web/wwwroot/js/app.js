@@ -2,7 +2,7 @@
     const containers = document.querySelectorAll('.case-container');
     for (let i = 0; i < containers.length; i++) {
         containers[i].scrollLeft = 0;
-        smoothScrollTo(containers[i], position, 1000);
+        smoothScrollTo(containers[i], position, 900);
     }
 }
 
@@ -26,9 +26,7 @@ function smoothScrollTo(container, endX, duration) {
     const animateScroll = () => {
         const currentDate = +new Date();
         const currentTime = currentDate - startDate;
-        const val = easeInOutQuad(currentTime, startX, change, duration);
-
-        container.scrollLeft = val;
+        container.scrollLeft = easeInOutQuad(currentTime, startX, change, duration);
 
         if (currentTime < duration) {
             requestAnimationFrame(animateScroll);

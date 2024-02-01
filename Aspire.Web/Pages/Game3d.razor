@@ -1,0 +1,147 @@
+﻿@page "/3dGame"
+@inject IJSRuntime JsRuntime
+@inject ISnackbar Snackbar
+@inject IOptions<HubCfg> HubCfg
+@implements IAsyncDisposable
+
+<PageTitle>Home</PageTitle>
+
+@if (ErrorMsg is not null) {
+    <MudAlert Severity="Severity.Error">
+        @ErrorMsg
+    </MudAlert>
+}
+
+@switch (State) {
+    case EGameState.Idle:
+        <MudTextField Class="my-3" @bind-Value="LocalPlayer.Name" Label="Player Name"/>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="SearchMatch">
+            Find Match
+        </MudButton>
+        break;
+    case EGameState.WaitingForPlayer:
+        <MudAlert Severity="Severity.Info">
+            Waiting for player...
+        </MudAlert>
+        break;
+    case EGameState.JoiningGame:
+        <MudAlert Severity="Severity.Info">
+            Joining game...
+        </MudAlert>
+        break;
+    case EGameState.InGame:
+        <style>
+            html, body {
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            #renderCanvas {
+                width: 100%;
+                height: 100%;
+                touch-action: none;
+            }
+        </style>
+        
+        <canvas id="renderCanvas"></canvas>
+        
+        break;
+    default:
+        throw new ArgumentOutOfRangeException();
+}
+
+
+@code {
+
+
+    private EGameState State { get; set; }
+
+    private Player3d LocalPlayer { get; set; } = new();
+
+    private List<Player3d> Players { get; } = [];
+
+    private string? ErrorMsg { get; set; }
+
+    private HubConnection? _hubConnection;
+
+    private readonly List<Func<Task>> _afterRenderAsyncJobs = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        while (_afterRenderAsyncJobs.Count > 0) {
+            var job = _afterRenderAsyncJobs[0];
+            _afterRenderAsyncJobs.RemoveAt(0);
+            await job();
+        }
+    }
+    protected override async Task OnInitializedAsync() {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{HubCfg.Value.Url}/matchmaking")
+            .Build();
+
+        _hubConnection.On<string>("MatchFound", OnGameFound);
+
+        await _hubConnection.StartAsync();
+    }
+
+    private async Task JoinGame(string matchId) {
+        if (_hubConnection != null) await _hubConnection.DisposeAsync();
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{HubCfg.Value.Url}/3dgame")
+            .Build();
+
+        _hubConnection.On<Player3d>("PlayerJoined", OnPlayerJoined);
+        _hubConnection.On<Player3d>("SetLocalPlayer", OnLocalPlayerSet);
+        _hubConnection.On<string>("PlayerLeft", OnPlayerLeft);
+
+        await _hubConnection.StartAsync();
+
+        await _hubConnection.InvokeAsync("JoinGame", matchId, LocalPlayer.Name);
+    }
+
+    private async Task OnLocalPlayerSet(Player3d localPlayer) {
+        LocalPlayer = localPlayer;
+        await JsRuntime.InvokeVoidAsync("createScene");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnPlayerJoined(Player3d player) {
+        if (player.ConnId == LocalPlayer.ConnId) LocalPlayer = player;
+        Players.Add(player);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task OnPlayerLeft(string userId) {
+        Players.RemoveAll(p => p.ConnId == userId);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnGameFound(string matchId) {
+        State = EGameState.JoiningGame;
+        await InvokeAsync(StateHasChanged);
+        await JoinGame(matchId);
+        State = EGameState.InGame;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SearchMatch() {
+        if (string.IsNullOrEmpty(LocalPlayer.Name) || string.IsNullOrWhiteSpace(LocalPlayer.Name)) {
+            Snackbar.Add("Please enter a valid player name", Severity.Error);
+            return;
+        }
+
+        if (_hubConnection == null) return;
+
+        await _hubConnection.InvokeAsync("JoinQueue");
+        State = EGameState.WaitingForPlayer;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync() {
+        if (_hubConnection != null) await _hubConnection.DisposeAsync();
+    }
+
+}

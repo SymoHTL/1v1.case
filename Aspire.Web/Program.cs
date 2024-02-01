@@ -12,7 +12,7 @@ builder.Services.AddMudServices();
 
 builder.Services.Configure<HubCfg>(o => o.Url = builder.Configuration["hub_url"] ?? throw new Exception("hub_url not found"));
 
-builder.Services.AddScoped(sp => new HttpClient {
+builder.Services.AddTransient(sp => new HttpClient {
     BaseAddress = new Uri(builder.Configuration["csgo_url"] ??
                           throw new Exception("csgo_url not found"))
 });
