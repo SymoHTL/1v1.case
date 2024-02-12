@@ -1,0 +1,45 @@
+﻿@page "/Video"
+@inject IOptions<HubCfg> HubCfg
+@inject IJSRuntime JsRuntime
+
+<video id="localVideo" autoplay muted></video>
+<canvas id="remoteVideo" width="640" height="480"></canvas>
+
+@code {
+    private const string RoomId = "yourRoomId"; // Define or obtain this dynamically
+    private HubConnection? _hubConnection;
+
+    protected override async Task OnInitializedAsync() {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{HubCfg.Value.Url}/video")
+            .Build();
+
+        _hubConnection.On<string[]>("ReceiveData", OnData);
+
+        await _hubConnection.StartAsync();
+        await _hubConnection.SendAsync("JoinRoom", RoomId);
+        _hubConnection.Closed += async (error) => {
+            Console.WriteLine("Connection closed: " + error?.Message);
+            await Task.Delay(new Random().Next(0, 5) * 1000);
+            await _hubConnection.StartAsync();
+        };
+
+        await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this),
+            "localVideo", "start");
+    }
+
+    [JSInvokable]
+    public async Task SendData(string[] data) {
+        if (_hubConnection?.State != HubConnectionState.Connected) {
+            Console.WriteLine("Not connected");
+            return;
+        }
+
+        await _hubConnection!.SendAsync("SendData", data, RoomId);
+    }
+
+    private async Task OnData(string[] data) {
+        await JsRuntime.InvokeVoidAsync("receiveData", "remoteVideo", data);
+    }
+
+}
