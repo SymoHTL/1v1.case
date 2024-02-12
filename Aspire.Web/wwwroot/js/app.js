@@ -39,27 +39,31 @@ function smoothScrollTo(container, endX, duration) {
 }
 
 
+
 let currentInterval;
 window.receiveData = function (canvasId, data) {
+
     // data is a string[] of base64 encoded jpeg images
-    
-    if (currentInterval) {
-        clearInterval(currentInterval);
-    }
-    
+    if (currentInterval) clearInterval(currentInterval);
+
     currentInterval = setInterval(() => {
         const d = data.shift();
-        let dataBytes = Uint8Array.from(atob(d), c => c.charCodeAt(0));
-        renderFrame(canvasId, dataBytes);
+        renderFrame(canvasId, d);
     }, 1000 / 30);
-     
 }
-
 
 function renderFrame(canvasId, data) {
     const canvas = document.getElementById(canvasId);
     const context = canvas.getContext('2d');
-    const blob = new Blob([data], {type: 'image/jpeg'});
+    const raw = window.atob(data);
+    const rawLength = raw.length;
+    const array = new Uint8Array(new ArrayBuffer(rawLength));
+
+    for(let i = 0; i < rawLength; i++) {
+        array[i] = raw.charCodeAt(i);
+    }
+
+    const blob = new Blob([array], {type: 'image/jpeg'});
     const url = URL.createObjectURL(blob);
     const image = new Image();
     image.onload = function () {
@@ -69,9 +73,6 @@ function renderFrame(canvasId, data) {
     };
     image.src = url;
 }
-
-window
-
 
 let sendBuffer = [];
 const fps = 30;
@@ -90,7 +91,24 @@ window.localVideo = function (dotNetReference, elemId, command) {
                     console.log('Video capture started.');
                     videoElem.srcObject = stream;
                     videoElem.play();
-                    captureFrame();
+                    const recorder = new MediaRecorder(stream);
+                    recorder.ondataavailable = (e) => {
+                        sendBuffer.push(e.data);
+                        if (sendBuffer.length >= fps / 2) {
+                            // get all text from every frame using .text() promise and promise.all
+
+                            Promise.all(sendBuffer.map((blob) => {
+                                return blob.text();
+                            })).then((textArray) => {
+                                dotNetReference.invokeMethodAsync('SendData', textArray);
+                            });
+                            sendBuffer = [];
+                        }
+                    };
+                    recorder.start(1000 / fps);
+                    recorder.onstop = () => {
+                        console.log('Recorder stopped.');
+                    };
                 })
                 .catch((err) => {
                     console.error('Error starting video capture: ', err);
@@ -104,40 +122,4 @@ window.localVideo = function (dotNetReference, elemId, command) {
             }
         }
     }
-
-    function captureFrame() {
-        if (videoElem.srcObject && videoElem.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA) {
-            canvas.width = videoElem.videoWidth;
-            canvas.height = videoElem.videoHeight;
-            context.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
-            canvas.toBlob(function (blob) {
-                if (blob) {
-                    let reader = new FileReader();
-                    reader.onloadend = function () {
-                        sendBuffer.push(reader.result);
-                        console.log(`sendBuffer.length: ${sendBuffer.length}`);
-                        if (sendBuffer.length >= fps) {
-                            // convert sendBuffer to a base64 string array
-                            let strArray = sendBuffer.map(b => {
-                                let binary = '';
-                                let bytes = new Uint8Array(b);
-                                for (let i = 0; i < bytes.byteLength; i++) {
-                                    binary += String.fromCharCode(bytes[i]);
-                                }
-                                return window.btoa(binary);
-                            });
-                            dotNetReference.invokeMethodAsync('SendData', strArray);
-                            sendBuffer = [];
-                        }
-                    };
-                    reader.readAsArrayBuffer(blob);
-                }
-            }, 'image/jpeg');
-        }
-        requestAnimationFrame(captureFrame);
-    }
 };
-
-
-
-

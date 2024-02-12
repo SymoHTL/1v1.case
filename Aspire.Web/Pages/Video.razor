@@ -35,10 +35,12 @@
             return;
         }
 
+        Console.WriteLine("Sending data");
         await _hubConnection!.SendAsync("SendData", data, RoomId);
     }
 
     private async Task OnData(string[] data) {
+        Console.WriteLine("Received data");
         await JsRuntime.InvokeVoidAsync("receiveData", "remoteVideo", data);
     }
 
