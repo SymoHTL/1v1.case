@@ -38,20 +38,6 @@ function smoothScrollTo(container, endX, duration) {
     animateScroll();
 }
 
-
-
-let currentInterval;
-window.receiveData = function (canvasId, data) {
-
-    // data is a string[] of base64 encoded jpeg images
-    if (currentInterval) clearInterval(currentInterval);
-
-    currentInterval = setInterval(() => {
-        const d = data.shift();
-        renderFrame(canvasId, d);
-    }, 1000 / 30);
-}
-
 function renderFrame(canvasId, data) {
     const canvas = document.getElementById(canvasId);
     const context = canvas.getContext('2d');
@@ -59,7 +45,7 @@ function renderFrame(canvasId, data) {
     const rawLength = raw.length;
     const array = new Uint8Array(new ArrayBuffer(rawLength));
 
-    for(let i = 0; i < rawLength; i++) {
+    for (let i = 0; i < rawLength; i++) {
         array[i] = raw.charCodeAt(i);
     }
 
@@ -74,14 +60,60 @@ function renderFrame(canvasId, data) {
     image.src = url;
 }
 
-let sendBuffer = [];
-const fps = 30;
+
+let canvas, context;
+let frameBuffer = [];
+const frameRate = 30; // Desired frame rate, e.g., 30 frames per second
+const frameRenderInterval = 1000 / frameRate; // Calculate interval in ms
+
+let renderingStarted = false;
+let currentObjectURL = null; // Keep track of the current Object URL
+let renderImage = new Image();
+
+
+window.renderFrame = function (canvasId, data) {
+    frameBuffer.push({ canvasId, data });
+    if (!canvas) {
+        canvas = document.getElementById(canvasId);
+        context = canvas.getContext('2d');
+    }
+
+    if (!renderingStarted) {
+        renderingStarted = true;
+        setInterval(renderFromBuffer, frameRenderInterval);
+    }
+};
+
+renderImage.onload = function () {
+    
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(renderImage, 0, 0, canvas.width, canvas.height);
+    if (currentObjectURL) {
+        URL.revokeObjectURL(currentObjectURL); // Revoke the previous Object URL
+    }
+};
+
+function renderFromBuffer() {
+    if (frameBuffer.length > 0) {
+        const frame = frameBuffer.shift();
+        const blob = new Blob([frame.data], {type: 'image/jpeg'});
+        currentObjectURL = URL.createObjectURL(blob); // Update current Object URL
+        renderImage.src = currentObjectURL;
+    }
+}
+
+
+let stop = false;
+let lastFrameTime = 0;
 
 window.localVideo = function (dotNetReference, elemId, command) {
     console.log(`localVideo called with command: ${command}`);
     const videoElem = document.getElementById(elemId);
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
+    let canvas, context;
+    if (!canvas) {
+        canvas = document.createElement('canvas');
+        context = canvas.getContext('2d');
+    }
 
     if (videoElem) {
         if (command === 'start') {
@@ -91,35 +123,43 @@ window.localVideo = function (dotNetReference, elemId, command) {
                     console.log('Video capture started.');
                     videoElem.srcObject = stream;
                     videoElem.play();
-                    const recorder = new MediaRecorder(stream);
-                    recorder.ondataavailable = (e) => {
-                        sendBuffer.push(e.data);
-                        if (sendBuffer.length >= fps / 2) {
-                            // get all text from every frame using .text() promise and promise.all
-
-                            Promise.all(sendBuffer.map((blob) => {
-                                return blob.text();
-                            })).then((textArray) => {
-                                dotNetReference.invokeMethodAsync('SendData', textArray);
-                            });
-                            sendBuffer = [];
-                        }
-                    };
-                    recorder.start(1000 / fps);
-                    recorder.onstop = () => {
-                        console.log('Recorder stopped.');
-                    };
+                    captureFrame();
                 })
                 .catch((err) => {
                     console.error('Error starting video capture: ', err);
                 });
         } else {
+            stop = true;
             console.log('Attempting to stop video capture...');
             const stream = videoElem.srcObject;
             if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                videoElem.srcObject = null;
                 console.log('Video capture stopped.');
             }
         }
     }
+
+    function captureFrame() {
+        if (stop) return;
+        const now = performance.now();
+        if (videoElem.srcObject && videoElem.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA && performance.now() - lastFrameTime > 1000 / frameRate) {
+            canvas.width = videoElem.videoWidth;
+            canvas.height = videoElem.videoHeight;
+            context.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
+            lastFrameTime = now;
+            canvas.toBlob(function (blob) {
+                if (blob) {
+                    let reader = new FileReader();
+                    reader.onloadend = function () {
+                        dotNetReference.invokeMethodAsync("SendData", new Uint8Array(reader.result));
+                    };
+                    reader.readAsArrayBuffer(blob);
+                }
+            }, 'image/jpeg', 0.1);
+        }
+        requestAnimationFrame(captureFrame);
+    }
 };
+

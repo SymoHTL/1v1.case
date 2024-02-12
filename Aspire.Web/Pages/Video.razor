@@ -5,6 +5,8 @@
 <video id="localVideo" autoplay muted></video>
 <canvas id="remoteVideo" width="640" height="480"></canvas>
 
+<MudButton OnClick="Stop" Color="Color.Error">Stop</MudButton>
+
 @code {
     private const string RoomId = "yourRoomId"; // Define or obtain this dynamically
     private HubConnection? _hubConnection;
@@ -14,7 +16,7 @@
             .WithUrl($"{HubCfg.Value.Url}/video")
             .Build();
 
-        _hubConnection.On<string[]>("ReceiveData", OnData);
+        _hubConnection.On<byte[]>("ReceiveData", OnData);
 
         await _hubConnection.StartAsync();
         await _hubConnection.SendAsync("JoinRoom", RoomId);
@@ -29,19 +31,22 @@
     }
 
     [JSInvokable]
-    public async Task SendData(string[] data) {
+    public async Task SendData(byte[] data) {
         if (_hubConnection?.State != HubConnectionState.Connected) {
             Console.WriteLine("Not connected");
             return;
         }
 
-        Console.WriteLine("Sending data");
         await _hubConnection!.SendAsync("SendData", data, RoomId);
     }
 
-    private async Task OnData(string[] data) {
-        Console.WriteLine("Received data");
-        await JsRuntime.InvokeVoidAsync("receiveData", "remoteVideo", data);
+    private async Task OnData(byte[] data) {
+        await JsRuntime.InvokeVoidAsync("renderFrame", "remoteVideo", data);
+    }
+
+    private async Task Stop() {
+        await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this),
+            "localVideo", "stop");
     }
 
 }

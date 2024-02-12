@@ -5,7 +5,7 @@ public class VideoHub : Hub {
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
     }
 
-    public async Task SendData(string[] data, string roomId) {
+    public async Task SendData(byte[] data, string roomId) {
         await Clients.OthersInGroup(roomId).SendAsync("ReceiveData", data);
     }
 }
