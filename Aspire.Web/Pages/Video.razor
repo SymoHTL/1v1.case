@@ -2,16 +2,61 @@
 @inject IOptions<HubCfg> HubCfg
 @inject IJSRuntime JsRuntime
 
-<video id="localVideo" autoplay muted></video>
-<canvas id="remoteVideo" width="640" height="480"></canvas>
+@switch (State) {
+    case EGameState.Idle:
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="SearchMatch">
+            Find Match
+        </MudButton>
+        break;
+    case EGameState.WaitingForPlayer:
+        <MudAlert Severity="Severity.Info">
+            Waiting for player...
+        </MudAlert>
+        break;
+    case EGameState.JoiningGame:
+        <MudAlert Severity="Severity.Info">
+            Joining game...
+        </MudAlert>
+        break;
+    case EGameState.InGame:
+        <video id="localVideo" autoplay muted></video>
+        <canvas id="remoteVideo" width="640" height="480"></canvas>
+        <MudButton OnClick="Stop" Color="Color.Error">Stop</MudButton>
+        break;
+    default:
+        throw new ArgumentOutOfRangeException();
+}
 
-<MudButton OnClick="Stop" Color="Color.Error">Stop</MudButton>
 
 @code {
-    private const string RoomId = "yourRoomId"; // Define or obtain this dynamically
     private HubConnection? _hubConnection;
 
+    private string RoomId { get; set; } = null!;
+
+    private EGameState State { get; set; }
+
     protected override async Task OnInitializedAsync() {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{HubCfg.Value.Url}/matchmaking")
+            .Build();
+
+        _hubConnection.On<string>("MatchFound", OnGameFound);
+
+        await _hubConnection.StartAsync();
+    }
+
+    private async Task SearchMatch() {
+        await _hubConnection!.InvokeAsync("JoinQueue");
+        State = EGameState.WaitingForPlayer;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnGameFound(string roomId) {
+        State = EGameState.JoiningGame;
+        await InvokeAsync(StateHasChanged);
+
+        RoomId = roomId;
         _hubConnection = new HubConnectionBuilder()
             .WithUrl($"{HubCfg.Value.Url}/video")
             .Build();
@@ -25,9 +70,14 @@
             await Task.Delay(new Random().Next(0, 5) * 1000);
             await _hubConnection.StartAsync();
         };
-
+        
+        State = EGameState.InGame;
+        await InvokeAsync(StateHasChanged);
+        
         await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this),
             "localVideo", "start");
+
+        
     }
 
     [JSInvokable]
