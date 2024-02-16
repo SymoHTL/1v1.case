@@ -1,0 +1,11 @@
+﻿services:
+  aspire.apphost:
+    image: aspire.apphost
+    build:
+      context: .
+      dockerfile: Aspire/Aspire.AppHost/Dockerfile
+  aspire.web:
+    image: aspire.web
+    build:
+      context: .
+      dockerfile: Aspire.Web/Dockerfile

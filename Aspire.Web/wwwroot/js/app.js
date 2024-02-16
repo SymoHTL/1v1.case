@@ -84,6 +84,13 @@ window.renderFrame = function (canvasId, data) {
     }
 };
 
+window.clearCanvas = function (canvasId) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    console.log(`Canvas ${canvasId} cleared.`);
+    canvas = null;
+    context = null; 
+}
+
 renderImage.onload = function () {
     
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -117,6 +124,7 @@ window.localVideo = function (dotNetReference, elemId, command) {
 
     if (videoElem) {
         if (command === 'start') {
+            stop = false;
             console.log('Attempting to start video capture...');
             navigator.mediaDevices.getUserMedia({video: true})
                 .then((stream) => {
@@ -130,14 +138,11 @@ window.localVideo = function (dotNetReference, elemId, command) {
                 });
         } else {
             stop = true;
-            console.log('Attempting to stop video capture...');
-            const stream = videoElem.srcObject;
-            if (stream) {
-                const tracks = stream.getTracks();
-                tracks.forEach(track => track.stop());
-                videoElem.srcObject = null;
-                console.log('Video capture stopped.');
-            }
+            videoElem.pause();
+            videoElem.srcObject.getTracks().forEach(track => track.stop());
+            console.log('Video capture stopped.');
+            canvas = null;
+            context = null;
         }
     }
 

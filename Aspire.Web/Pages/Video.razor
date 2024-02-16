@@ -20,9 +20,24 @@
         </MudAlert>
         break;
     case EGameState.InGame:
-        <video id="localVideo" autoplay muted></video>
-        <canvas id="remoteVideo" width="640" height="480"></canvas>
-        <MudButton OnClick="Stop" Color="Color.Error">Stop</MudButton>
+        <MudGrid>
+            <MudItem xs="6">
+                <video id="localVideo" autoplay muted></video>
+            </MudItem>
+            <MudItem xs="6">
+                <canvas id="remoteVideo" width="640" height="480"></canvas>
+            </MudItem>
+        </MudGrid>
+        <MudItem xs="12">
+            <MudButton OnClick="Stop" Variant="Variant.Filled" Size="Size.Large"
+                       Color="Color.Error">
+                Stop
+            </MudButton>
+            <MudButton OnClick="Next" Variant="Variant.Filled" Size="Size.Large"
+                       Color="Color.Info">
+                Next
+            </MudButton>
+        </MudItem>
         break;
     default:
         throw new ArgumentOutOfRangeException();
@@ -34,50 +49,50 @@
 
     private string RoomId { get; set; } = null!;
 
+    private string? OtherPlayerId { get; set; }
+
     private EGameState State { get; set; }
 
     protected override async Task OnInitializedAsync() {
-        _hubConnection = new HubConnectionBuilder()
-            .WithUrl($"{HubCfg.Value.Url}/matchmaking")
-            .Build();
+        try {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl($"{HubCfg.Value.Url}/video")
+                .Build();
 
-        _hubConnection.On<string>("MatchFound", OnGameFound);
+            _hubConnection.On<byte[]>("ReceiveData", OnData);
+            _hubConnection.On<string, string>("MatchFound", OnGameFound);
 
-        await _hubConnection.StartAsync();
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception e) {
+            Console.WriteLine(e);
+            throw;
+        }
     }
 
     private async Task SearchMatch() {
-        await _hubConnection!.InvokeAsync("JoinQueue");
-        State = EGameState.WaitingForPlayer;
-        await InvokeAsync(StateHasChanged);
+        try {
+            await _hubConnection!.InvokeAsync("JoinQueue", OtherPlayerId);
+            State = EGameState.WaitingForPlayer;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception e) {
+            Console.WriteLine(e);
+            throw;
+        }
     }
 
-    private async Task OnGameFound(string roomId) {
+    private async Task OnGameFound(string roomId, string otherPlayerId) {
+        Console.WriteLine("Game found");
+        OtherPlayerId = otherPlayerId;
         State = EGameState.JoiningGame;
         await InvokeAsync(StateHasChanged);
-
         RoomId = roomId;
-        _hubConnection = new HubConnectionBuilder()
-            .WithUrl($"{HubCfg.Value.Url}/video")
-            .Build();
-
-        _hubConnection.On<byte[]>("ReceiveData", OnData);
-
-        await _hubConnection.StartAsync();
-        await _hubConnection.SendAsync("JoinRoom", RoomId);
-        _hubConnection.Closed += async (error) => {
-            Console.WriteLine("Connection closed: " + error?.Message);
-            await Task.Delay(new Random().Next(0, 5) * 1000);
-            await _hubConnection.StartAsync();
-        };
-        
+        await _hubConnection!.SendAsync("JoinRoom", RoomId);
         State = EGameState.InGame;
         await InvokeAsync(StateHasChanged);
-        
         await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this),
             "localVideo", "start");
-
-        
     }
 
     [JSInvokable]
@@ -95,8 +110,23 @@
     }
 
     private async Task Stop() {
-        await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this),
-            "localVideo", "stop");
+        await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this), "localVideo", "stop");
+        await _hubConnection!.SendAsync("LeaveRoom", RoomId);
+        await Task.Delay(50);
+        await _hubConnection!.StopAsync();
+        await JsRuntime.InvokeVoidAsync("clearCanvas", "remoteVideo");
+        State = EGameState.Idle;
+        await InvokeAsync(StateHasChanged);
+        await OnInitializedAsync();
+    }
+
+    private async Task Next() {
+        await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this), "localVideo", "stop");
+        await _hubConnection!.SendAsync("LeaveRoom", RoomId);
+        await _hubConnection!.SendAsync("JoinQueue", OtherPlayerId);
+        await JsRuntime.InvokeVoidAsync("clearCanvas", "remoteVideo");
+        State = EGameState.WaitingForPlayer;
+        await InvokeAsync(StateHasChanged);
     }
 
 }

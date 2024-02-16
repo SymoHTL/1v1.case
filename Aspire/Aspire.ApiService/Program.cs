@@ -29,7 +29,6 @@ var app = builder.Build();
 
 app.MapHub<MatchmakingHub>("/matchmaking");
 app.MapHub<CsgoGameHub>("/csgo");
-app.MapHub<GameHub>("/3dgame");
 app.MapHub<VideoHub>("/video");
 
 app.UseCors(o => o.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin());
