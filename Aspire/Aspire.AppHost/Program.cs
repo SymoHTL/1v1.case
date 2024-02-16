@@ -2,6 +2,11 @@ using Projects;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var apiService = builder.AddProject<Aspire_ApiService>("apiservice");
+var sql = builder.AddSqlServer("sql")
+    .AddDatabase("sqldata");
+
+var apiService =
+    builder.AddProject<Projects.Aspire_ApiService>("apiservice")
+        .WithReference(sql);
 
 builder.Build().Run();

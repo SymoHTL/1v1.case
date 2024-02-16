@@ -4,6 +4,9 @@
 
 @switch (State) {
     case EGameState.Idle:
+        <MudForm @ref="_form">
+            <MudTextField T="string" Label="Player Name" @bind-Value="PlayerName" Required="true"/>
+        </MudForm>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    OnClick="SearchMatch">
             Find Match
@@ -45,10 +48,13 @@
 
 
 @code {
+    private MudForm _form = null!;
+    
     private HubConnection? _hubConnection;
 
     private string RoomId { get; set; } = null!;
 
+    private string PlayerName { get; set; } = null!;
     private string? OtherPlayerId { get; set; }
 
     private EGameState State { get; set; }
@@ -61,6 +67,7 @@
 
             _hubConnection.On<byte[]>("ReceiveData", OnData);
             _hubConnection.On<string, string>("MatchFound", OnGameFound);
+            _hubConnection.On("Skipped", Next);
 
             await _hubConnection.StartAsync();
         }
@@ -72,7 +79,10 @@
 
     private async Task SearchMatch() {
         try {
-            await _hubConnection!.InvokeAsync("JoinQueue", OtherPlayerId);
+            await _form.Validate();
+            if (!_form.IsValid) return;
+            
+            await _hubConnection!.InvokeAsync("JoinQueue", PlayerName, OtherPlayerId);
             State = EGameState.WaitingForPlayer;
             await InvokeAsync(StateHasChanged);
         }
@@ -122,11 +132,11 @@
 
     private async Task Next() {
         await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this), "localVideo", "stop");
-        await _hubConnection!.SendAsync("LeaveRoom", RoomId);
-        await _hubConnection!.SendAsync("JoinQueue", OtherPlayerId);
+        await _hubConnection!.SendAsync("Next", RoomId, OtherPlayerId);
         await JsRuntime.InvokeVoidAsync("clearCanvas", "remoteVideo");
         State = EGameState.WaitingForPlayer;
         await InvokeAsync(StateHasChanged);
     }
 
 }
+

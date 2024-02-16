@@ -4,8 +4,12 @@
     build:
       context: .
       dockerfile: Aspire/Aspire.AppHost/Dockerfile
+    ports:
+      - 8011:8080
   aspire.web:
     image: aspire.web
     build:
       context: .
       dockerfile: Aspire.Web/Dockerfile
+    ports:
+      - 8010:8080

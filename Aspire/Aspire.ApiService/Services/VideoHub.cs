@@ -1,16 +1,19 @@
-﻿namespace Aspire.ApiService.Services;
+﻿using System.Data;
 
-public class VideoHub(ILogger<VideoHub> logger) : Hub<IVideoClient> {
+namespace Aspire.ApiService.Services;
+
+public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IVideoClient> {
     private static readonly Dictionary<string, string?> PlayerQueue = [];
     private static readonly SemaphoreSlim Semaphore = new(1, 1);
+    private static readonly Dictionary<string, string> PlayerNames = new();
 
-    // ReSharper disable once ReplaceAsyncWithTaskReturn
-    public async Task JoinQueue(string? previousPlayer) {
+    public async Task JoinQueue(string playerName, string? previousPlayer) {
         logger.LogInformation("Player {ConnectionId} joined the queue", Context.ConnectionId);
 
         await Semaphore.WaitAsync();
         try {
             PlayerQueue.TryAdd(Context.ConnectionId, previousPlayer);
+            PlayerNames[Context.ConnectionId] = playerName;
         }
         finally {
             Semaphore.Release();
@@ -26,6 +29,7 @@ public class VideoHub(ILogger<VideoHub> logger) : Hub<IVideoClient> {
         await Semaphore.WaitAsync();
         try {
             PlayerQueue.Remove(Context.ConnectionId);
+            PlayerNames.Remove(Context.ConnectionId);
         }
         finally {
             Semaphore.Release();
@@ -45,7 +49,8 @@ public class VideoHub(ILogger<VideoHub> logger) : Hub<IVideoClient> {
                 // Skip if player is already matched
                 if (matchedPlayers.Contains(player)) continue;
 
-                var otherPlayer = PlayerQueue.FirstOrDefault(p => p.Key != player && p.Key != lastMatched && !matchedPlayers.Contains(p.Key));
+                var otherPlayer = PlayerQueue.FirstOrDefault(p =>
+                    p.Key != player && p.Key != lastMatched && !matchedPlayers.Contains(p.Key));
                 if (otherPlayer.Key is null) continue;
 
                 matchedPlayers.Add(player);
@@ -56,12 +61,12 @@ public class VideoHub(ILogger<VideoHub> logger) : Hub<IVideoClient> {
                 var gameId = Guid.NewGuid().ToString();
                 await Clients.Client(player).MatchFound(gameId, otherPlayer.Key);
                 await Clients.Client(otherPlayer.Key).MatchFound(gameId, player);
+                
+                await context.OngoingChads.AddAsync(new OngoingChad { RoomId = gameId });
             }
 
             // Remove matched players from the queue
-            foreach (var player in matchedPlayers) {
-                PlayerQueue.Remove(player);
-            }
+            foreach (var player in matchedPlayers) PlayerQueue.Remove(player);
         }
         catch (Exception ex) {
             logger.LogError(ex, "Error while trying to match players");
@@ -82,6 +87,45 @@ public class VideoHub(ILogger<VideoHub> logger) : Hub<IVideoClient> {
 
     public async Task LeaveRoom(string roomId) {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
+        
+        await context.OngoingChads.Where(c => c.RoomId == roomId).ExecuteDeleteAsync();
+    }
+
+    public async Task Next(string oldRoomId, string prevPlayerId) {
+        await Semaphore.WaitAsync();
+        try {
+            await LeaveRoom(oldRoomId);
+            await JoinQueue(Context.ConnectionId, prevPlayerId);
+            var p1Name = PlayerNames[Context.ConnectionId];
+            var p2Name = PlayerNames[prevPlayerId];
+
+            await UpdateStats(p1Name, p2Name);
+        }
+        finally {
+            Semaphore.Release();
+        }
+    }
+
+    private async Task UpdateStats(string p1Name, string p2Name) {
+        var p1 = await context.LeaderBoards
+            .FirstOrDefaultAsync(p => p.PlayerName == p1Name);
+        var p2 = await context.LeaderBoards
+            .FirstOrDefaultAsync(p => p.PlayerName == p2Name);
+
+        if (p1 is null) {
+            p1 = new LeaderBoard {PlayerName = p1Name};
+            context.LeaderBoards.Add(p1);
+        }
+        
+        if (p2 is null) {
+            p2 = new LeaderBoard {PlayerName = p2Name};
+            context.LeaderBoards.Add(p2);
+        }
+
+        p1.SkippedOthers++;
+        p2.SkippedByOthers++;
+
+        await context.SaveChangesAsync();
     }
 }
 

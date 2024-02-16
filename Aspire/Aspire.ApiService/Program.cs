@@ -1,7 +1,5 @@
-using Aspire.ApiService.Configuration;
 using Aspire.ApiService.Services;
 using Aspire.ServiceDefaults;
-using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,8 +7,7 @@ builder.AddServiceDefaults();
 
 builder.Services.AddProblemDetails();
 
-builder.Services.AddDbContextFactory<ModelDbContext>(options =>
-    options.UseInMemoryDatabase("Aspire.PlayerDatabase"));
+builder.AddSqlServerDbContext<ModelDbContext>("sqldata");
 
 builder.Services.AddSignalR(o => {
     o.EnableDetailedErrors = true;
@@ -36,5 +33,23 @@ app.UseCors(o => o.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin());
 app.UseExceptionHandler();
 
 app.MapDefaultEndpoints();
+
+app.MapGet("leaderboard", async (ModelDbContext context) =>
+    Results.Ok((object?)await context.LeaderBoards.ToListAsync()));
+
+app.MapGet("ongoingchad", async (ModelDbContext context) =>
+    Results.Ok((object?)await context.OngoingChads.ToListAsync()));
+
+if (app.Environment.IsDevelopment()) {
+    using var scope = app.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<ModelDbContext>();
+    context.Database.EnsureCreated();
+}
+else {
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    // The default HSTS value is 30 days.
+    // You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    app.UseHsts();
+}
 
 app.Run();

@@ -1,7 +1,4 @@
-﻿using Aspire.ApiService.Configuration;
-using Microsoft.EntityFrameworkCore;
-
-namespace Aspire.ApiService.Services;
+﻿namespace Aspire.ApiService.Services;
 
 public class PlayerRepository(ModelDbContext context) : IPlayerRepository {
     private readonly DbSet<Player> _players = context.Players;

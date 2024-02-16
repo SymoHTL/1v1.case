@@ -43,7 +43,7 @@ public class CsgoGameHub(ILogger<CsgoGameHub> logger, IPlayerRepository playerRe
             var results = await SimulateCases(players);
             logger.LogInformation("Round Finished: {Results}", results);
             await Clients.Group(groupId).StartRound(results);
-            await Task.Delay(1000);
+            await Task.Delay(2000);
         }
         foreach (var player in players) player.Ready = false;
         await playerRepository.UpdatePlayers(players);

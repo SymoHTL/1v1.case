@@ -1,6 +1,6 @@
 ﻿@page "/csgo"
 @inject IJSRuntime JsRuntime
-@inject HttpClient CsgoClient
+@inject IHttpClientFactory CsgoClient
 @inject ISnackbar Snackbar
 @inject IOptions<HubCfg> HubCfg
 @implements IAsyncDisposable
@@ -172,6 +172,8 @@
 
     private readonly List<Func<Task>> _afterRenderAsyncJobs = [];
 
+    public HttpClient Client { get; set; } = null!;
+
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         while (_afterRenderAsyncJobs.Count > 0) {
             var job = _afterRenderAsyncJobs[0];
@@ -200,6 +202,7 @@
     }
 
     protected override async Task OnInitializedAsync() {
+        Client = CsgoClient.CreateClient("csgo");
         _hubConnection = new HubConnectionBuilder()
             .WithUrl($"{HubCfg.Value.Url}/matchmaking")
             .Build();
@@ -207,7 +210,7 @@
         _hubConnection.On<string>("MatchFound", OnGameFound);
 
         await _hubConnection.StartAsync();
-        CasesDb = (await CsgoClient.GetFromJsonAsync<List<Case>>("crates.json"))!;
+        CasesDb = (await Client.GetFromJsonAsync<List<Case>>("crates.json"))!;
         if (CasesDb is null) {
             ErrorMsg = "Failed to load cases";
             return;
@@ -342,7 +345,7 @@
 
     public async ValueTask DisposeAsync() {
         if (_hubConnection != null) await _hubConnection.DisposeAsync();
-        CsgoClient?.Dispose();
+        Client?.Dispose();
     }
 
 }

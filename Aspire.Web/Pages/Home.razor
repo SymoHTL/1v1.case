@@ -1,1 +1,57 @@
 ﻿@page "/"
+@inject HttpClient Http
+
+<MudText Typo="Typo.h5">Leaderboard</MudText>
+
+@if (Leaderboard == null) {
+    <MudProgressCircular Indeterminate="true"/>
+}
+else {
+    <MudTable Items=Leaderboard>
+        <HeaderContent>
+            <MudTh>Username</MudTh>
+            <MudTh>SkippedOthers</MudTh>
+            <MudTh>SkippedByOther</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.PlayerName</MudTd>
+            <MudTd>@context.SkippedOthers</MudTd>
+            <MudTd>@context.SkippedByOthers</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+<MudDivider Class="my-5"/>
+
+@if (Chads == null) {
+    <MudProgressCircular Indeterminate="true"/>
+}
+else {
+    <MudTable Items=Chads>
+        <HeaderContent>
+            <MudTh>RoomId</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.RoomId</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.RemoveRedEye"/>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+
+    public Leaderboard[]? Leaderboard { get; set; }
+    public OngoingChad[]? Chads { get; set; }
+
+    protected override async Task OnInitializedAsync() {
+        var (leaderboards, chads) = await (
+            Http.GetFromJsonAsync<Leaderboard[]>("api/leaderboard"),
+            Http.GetFromJsonAsync<OngoingChad[]>("api/ongoingchad"));
+        Leaderboard = leaderboards;
+        Chads = chads;
+    }
+
+}
