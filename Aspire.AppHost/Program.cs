@@ -1,6 +1,6 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var sql = builder.AddSqlServer("sql")
+var sql = builder.AddSqlServerContainer("sql")
     .AddDatabase("sqldata");
 
 var apiService =

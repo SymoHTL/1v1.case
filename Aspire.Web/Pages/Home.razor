@@ -7,11 +7,23 @@
     <MudProgressCircular Indeterminate="true"/>
 }
 else {
-    <MudTable Items=Leaderboard>
+    <MudTable Items="Leaderboard" Hover="true" Striped="true">
         <HeaderContent>
-            <MudTh>Username</MudTh>
-            <MudTh>SkippedOthers</MudTh>
-            <MudTh>SkippedByOther</MudTh>
+            <MudTh>
+                <MudTableSortLabel T="Leaderboard" SortBy="l => l.PlayerName">
+                    Username
+                </MudTableSortLabel>
+            </MudTh>
+            <MudTh>
+                <MudTableSortLabel T="Leaderboard" SortBy="l => l.SkippedOthers">
+                    SkippedOthers
+                </MudTableSortLabel>
+            </MudTh>
+            <MudTh>
+                <MudTableSortLabel T="Leaderboard" SortBy="l => l.SkippedByOthers">
+                    SkippedByOther
+                </MudTableSortLabel>
+            </MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd>@context.PlayerName</MudTd>
@@ -27,7 +39,7 @@ else {
     <MudProgressCircular Indeterminate="true"/>
 }
 else {
-    <MudTable Items=Chads>
+    <MudTable Items="Chads" Hover="true" Striped="true">
         <HeaderContent>
             <MudTh>RoomId</MudTh>
             <MudTh>Actions</MudTh>

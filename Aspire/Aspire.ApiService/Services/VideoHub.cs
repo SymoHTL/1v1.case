@@ -1,15 +1,11 @@
 ﻿namespace Aspire.ApiService.Services;
 
-public class VideoHub( /*ModelDbContext context,*/ ILogger<VideoHub> logger) : Hub<IVideoClient> {
+public class VideoHub( ModelDbContext context, ILogger<VideoHub> logger) : Hub<IVideoClient> {
     private static readonly Dictionary<string, string?> PlayerQueue = [];
     private static readonly SemaphoreSlim Semaphore = new(1, 1);
     private static readonly Dictionary<string, string> PlayerNames = new();
 
     public async Task JoinQueue(string playerName, string? previousPlayer) {
-        logger.LogInformation("Player {ConnectionId} joined the queue", Context.ConnectionId);
-
-        logger.LogInformation("Existing players in the queue: {Amount} {Players}", PlayerQueue.Count, PlayerQueue.Keys);
-
         await Semaphore.WaitAsync();
         try {
             PlayerQueue.TryAdd(Context.ConnectionId, previousPlayer);
@@ -20,6 +16,8 @@ public class VideoHub( /*ModelDbContext context,*/ ILogger<VideoHub> logger) : H
         finally {
             Semaphore.Release();
         }
+
+        logger.LogInformation("Currently {PlayerCount} players in the queue", PlayerQueue.Count);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception) {
@@ -60,7 +58,8 @@ public class VideoHub( /*ModelDbContext context,*/ ILogger<VideoHub> logger) : H
             await Clients.Client(player).MatchFound(gameId, otherPlayer.Key);
             await Clients.Client(otherPlayer.Key).MatchFound(gameId, player);
 
-            //await context.OngoingChads.AddAsync(new OngoingChad { RoomId = gameId });
+            await context.OngoingChads.AddAsync(new OngoingChad { RoomId = gameId });
+            await context.SaveChangesAsync();
         }
 
         // Remove matched players from the queue
@@ -77,28 +76,31 @@ public class VideoHub( /*ModelDbContext context,*/ ILogger<VideoHub> logger) : H
     }
 
     public async Task LeaveRoom(string roomId) {
+        await Clients.Group(roomId).Stop();
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
 
-        //await context.OngoingChads.Where(c => c.RoomId == roomId).ExecuteDeleteAsync();
+        await context.OngoingChads.Where(c => c.RoomId == roomId).ExecuteDeleteAsync();
     }
 
     public async Task Next(string oldRoomId, string prevPlayerId) {
         await Semaphore.WaitAsync();
+        string p1Name;
+        string p2Name;
         try {
-            await LeaveRoom(oldRoomId);
-            await JoinQueue(Context.ConnectionId, prevPlayerId);
-            var p1Name = PlayerNames[Context.ConnectionId];
-            var p2Name = PlayerNames[prevPlayerId];
-
-            await UpdateStats(p1Name, p2Name);
+            p1Name = PlayerNames[Context.ConnectionId];
+            p2Name = PlayerNames[prevPlayerId];
         }
         finally {
             Semaphore.Release();
         }
+        
+        await LeaveRoom(oldRoomId);
+        await JoinQueue(p1Name, prevPlayerId);
+        await UpdateStats(p1Name, p2Name);
     }
 
     private async Task UpdateStats(string p1Name, string p2Name) {
-        /*var p1 = await context.LeaderBoards
+        var p1 = await context.LeaderBoards
             .FirstOrDefaultAsync(p => p.PlayerName == p1Name);
         var p2 = await context.LeaderBoards
             .FirstOrDefaultAsync(p => p.PlayerName == p2Name);
@@ -116,11 +118,13 @@ public class VideoHub( /*ModelDbContext context,*/ ILogger<VideoHub> logger) : H
         p1.SkippedOthers++;
         p2.SkippedByOthers++;
 
-        await context.SaveChangesAsync();*/
+        await context.SaveChangesAsync();
     }
 }
 
 public interface IVideoClient {
     Task ReceiveData(byte[] data);
     Task MatchFound(string gameId, string otherPlayerId);
+    
+    Task Stop();
 }

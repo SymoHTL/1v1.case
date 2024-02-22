@@ -46,7 +46,7 @@ app.UseExceptionHandler();
 app.MapDefaultEndpoints();
 
 app.MapGet("api/leaderboard", async (ModelDbContext context) =>
-    Results.Ok((object?)await context.LeaderBoards.ToListAsync()));
+    Results.Ok((object?)await context.LeaderBoards.OrderByDescending(l => l.SkippedOthers).ToListAsync()));
 
 app.MapGet("api/ongoingchad", async (ModelDbContext context) =>
     Results.Ok((object?)await context.OngoingChads.ToListAsync()));
@@ -58,7 +58,6 @@ if (app.Environment.IsDevelopment()) {
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<ModelDbContext>();
     context.Database.EnsureCreated();
-    
 }
 else {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);

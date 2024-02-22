@@ -92,7 +92,6 @@ window.clearCanvas = function (canvasId) {
 }
 
 renderImage.onload = function () {
-    
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(renderImage, 0, 0, canvas.width, canvas.height);
     if (currentObjectURL) {
@@ -140,6 +139,7 @@ window.localVideo = function (dotNetReference, elemId, command) {
             stop = true;
             videoElem.pause();
             videoElem.srcObject.getTracks().forEach(track => track.stop());
+            window.clearCanvas(elemId)
             console.log('Video capture stopped.');
             canvas = null;
             context = null;
