@@ -3,6 +3,12 @@ using Aspire.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+builder.Services.AddOptions();
+
+builder.Services.AddLogging();
+
+builder.Services.AddHttpContextAccessor();
 builder.AddServiceDefaults();
 
 builder.Services.AddProblemDetails();
@@ -22,6 +28,11 @@ builder.Services.AddScoped(c => new HttpClient() {
 
 builder.Services.AddCors();
 
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+
 var app = builder.Build();
 
 app.MapHub<MatchmakingHub>("/matchmaking");
@@ -34,16 +45,20 @@ app.UseExceptionHandler();
 
 app.MapDefaultEndpoints();
 
-app.MapGet("leaderboard", async (ModelDbContext context) =>
+app.MapGet("api/leaderboard", async (ModelDbContext context) =>
     Results.Ok((object?)await context.LeaderBoards.ToListAsync()));
 
-app.MapGet("ongoingchad", async (ModelDbContext context) =>
+app.MapGet("api/ongoingchad", async (ModelDbContext context) =>
     Results.Ok((object?)await context.OngoingChads.ToListAsync()));
 
 if (app.Environment.IsDevelopment()) {
+    app.UseSwagger();
+    app.UseSwaggerUI();
+    
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<ModelDbContext>();
     context.Database.EnsureCreated();
+    
 }
 else {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);

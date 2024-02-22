@@ -1,5 +1,5 @@
 ﻿@page "/"
-@inject HttpClient Http
+@inject IHttpClientFactory Factory
 
 <MudText Typo="Typo.h5">Leaderboard</MudText>
 
@@ -47,9 +47,10 @@ else {
     public OngoingChad[]? Chads { get; set; }
 
     protected override async Task OnInitializedAsync() {
+        using var http = Factory.CreateClient("apiservice");
         var (leaderboards, chads) = await (
-            Http.GetFromJsonAsync<Leaderboard[]>("api/leaderboard"),
-            Http.GetFromJsonAsync<OngoingChad[]>("api/ongoingchad"));
+            http.GetFromJsonAsync<Leaderboard[]>("api/leaderboard"),
+            http.GetFromJsonAsync<OngoingChad[]>("api/ongoingchad"));
         Leaderboard = leaderboards;
         Chads = chads;
     }

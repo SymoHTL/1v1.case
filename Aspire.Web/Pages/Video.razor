@@ -1,6 +1,7 @@
 ﻿@page "/Video"
 @inject IOptions<HubCfg> HubCfg
 @inject IJSRuntime JsRuntime
+@implements IAsyncDisposable
 
 @switch (State) {
     case EGameState.Idle:
@@ -49,7 +50,7 @@
 
 @code {
     private MudForm _form = null!;
-    
+
     private HubConnection? _hubConnection;
 
     private string RoomId { get; set; } = null!;
@@ -75,34 +76,50 @@
             Console.WriteLine(e);
             throw;
         }
+
+        _hubConnection.Reconnecting += error => {
+            Console.WriteLine("Reconnecting...");
+            return Task.CompletedTask;
+        };
+
+        _hubConnection.Reconnected += connectionId => {
+            Console.WriteLine("Reconnected.");
+            return Task.CompletedTask;
+        };
+
+        _hubConnection.Closed += error => {
+            Console.WriteLine("Connection closed.");
+            return Task.CompletedTask;
+        };
     }
 
     private async Task SearchMatch() {
         try {
             await _form.Validate();
             if (!_form.IsValid) return;
-            
+            Console.WriteLine("Searching match");
+
             await _hubConnection!.InvokeAsync("JoinQueue", PlayerName, OtherPlayerId);
-            State = EGameState.WaitingForPlayer;
-            await InvokeAsync(StateHasChanged);
+            UpdateState(EGameState.WaitingForPlayer);
         }
         catch (Exception e) {
-            Console.WriteLine(e);
-            throw;
+            Console.WriteLine($"Error in SearchMatch: {e.Message}");
         }
     }
 
+    private void UpdateState(EGameState newState) {
+        State = newState;
+        InvokeAsync(StateHasChanged);
+    }
     private async Task OnGameFound(string roomId, string otherPlayerId) {
         Console.WriteLine("Game found");
         OtherPlayerId = otherPlayerId;
-        State = EGameState.JoiningGame;
-        await InvokeAsync(StateHasChanged);
+        UpdateState(EGameState.JoiningGame);
         RoomId = roomId;
         await _hubConnection!.SendAsync("JoinRoom", RoomId);
-        State = EGameState.InGame;
+        UpdateState(EGameState.InGame);
+        await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this), "localVideo", "start");
         await InvokeAsync(StateHasChanged);
-        await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this),
-            "localVideo", "start");
     }
 
     [JSInvokable]
@@ -125,7 +142,7 @@
         await Task.Delay(50);
         await _hubConnection!.StopAsync();
         await JsRuntime.InvokeVoidAsync("clearCanvas", "remoteVideo");
-        State = EGameState.Idle;
+        UpdateState(EGameState.Idle);
         await InvokeAsync(StateHasChanged);
         await OnInitializedAsync();
     }
@@ -134,9 +151,12 @@
         await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this), "localVideo", "stop");
         await _hubConnection!.SendAsync("Next", RoomId, OtherPlayerId);
         await JsRuntime.InvokeVoidAsync("clearCanvas", "remoteVideo");
-        State = EGameState.WaitingForPlayer;
+        UpdateState(EGameState.WaitingForPlayer);
         await InvokeAsync(StateHasChanged);
     }
 
-}
+    public async ValueTask DisposeAsync() {
+        if (_hubConnection != null) await _hubConnection.DisposeAsync();
+    }
 
+}

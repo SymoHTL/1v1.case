@@ -10,10 +10,13 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddMudServices();
 
-builder.Services.Configure<HubCfg>(o =>
-    o.Url = builder.Configuration["hub_url"] ?? throw new Exception("hub_url not found"));
+var hubUrl = builder.Configuration["hub_url"] ?? throw new Exception("hub_url not found");
 
-builder.Services.AddHttpClient();
+builder.Services.Configure<HubCfg>(o => o.Url = hubUrl);
+
+builder.Services.AddHttpClient("apiservice",h => {
+    h.BaseAddress = new Uri(hubUrl);
+});
 
 builder.Services.AddHttpClient("csgo", client => {
     client.BaseAddress = new Uri(builder.Configuration["csgo_url"] ??

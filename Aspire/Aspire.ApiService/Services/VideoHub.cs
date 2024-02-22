@@ -1,8 +1,6 @@
-﻿using System.Data;
+﻿namespace Aspire.ApiService.Services;
 
-namespace Aspire.ApiService.Services;
-
-public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IVideoClient> {
+public class VideoHub( /*ModelDbContext context,*/ ILogger<VideoHub> logger) : Hub<IVideoClient> {
     private static readonly Dictionary<string, string?> PlayerQueue = [];
     private static readonly SemaphoreSlim Semaphore = new(1, 1);
     private static readonly Dictionary<string, string> PlayerNames = new();
@@ -10,16 +8,18 @@ public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IV
     public async Task JoinQueue(string playerName, string? previousPlayer) {
         logger.LogInformation("Player {ConnectionId} joined the queue", Context.ConnectionId);
 
+        logger.LogInformation("Existing players in the queue: {Amount} {Players}", PlayerQueue.Count, PlayerQueue.Keys);
+
         await Semaphore.WaitAsync();
         try {
             PlayerQueue.TryAdd(Context.ConnectionId, previousPlayer);
             PlayerNames[Context.ConnectionId] = playerName;
+
+            await TryMatchPlayers();
         }
         finally {
             Semaphore.Release();
         }
-
-        await TryMatchPlayers();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception) {
@@ -39,41 +39,32 @@ public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IV
     private async Task TryMatchPlayers() {
         logger.LogInformation("Trying to match players");
 
-        await Semaphore.WaitAsync();
-        try {
-            if (PlayerQueue.Count < 2) return;
+        if (PlayerQueue.Count < 2) return;
 
-            var matchedPlayers = new List<string>();
+        var matchedPlayers = new List<string>();
 
-            foreach (var (player, lastMatched) in PlayerQueue) {
-                // Skip if player is already matched
-                if (matchedPlayers.Contains(player)) continue;
+        foreach (var (player, lastMatched) in PlayerQueue) {
+            // Skip if player is already matched
+            if (matchedPlayers.Contains(player)) continue;
 
-                var otherPlayer = PlayerQueue.FirstOrDefault(p =>
-                    p.Key != player && p.Key != lastMatched && !matchedPlayers.Contains(p.Key));
-                if (otherPlayer.Key is null) continue;
+            var otherPlayer = PlayerQueue.FirstOrDefault(p =>
+                p.Key != player && p.Key != lastMatched && !matchedPlayers.Contains(p.Key));
+            if (otherPlayer.Key is null) continue;
 
-                matchedPlayers.Add(player);
-                matchedPlayers.Add(otherPlayer.Key);
+            matchedPlayers.Add(player);
+            matchedPlayers.Add(otherPlayer.Key);
 
-                logger.LogInformation("Match found between {Player1} and {Player2}", player, otherPlayer.Key);
+            logger.LogInformation("Match found between {Player1} and {Player2}", player, otherPlayer.Key);
 
-                var gameId = Guid.NewGuid().ToString();
-                await Clients.Client(player).MatchFound(gameId, otherPlayer.Key);
-                await Clients.Client(otherPlayer.Key).MatchFound(gameId, player);
-                
-                await context.OngoingChads.AddAsync(new OngoingChad { RoomId = gameId });
-            }
+            var gameId = Guid.NewGuid().ToString();
+            await Clients.Client(player).MatchFound(gameId, otherPlayer.Key);
+            await Clients.Client(otherPlayer.Key).MatchFound(gameId, player);
 
-            // Remove matched players from the queue
-            foreach (var player in matchedPlayers) PlayerQueue.Remove(player);
+            //await context.OngoingChads.AddAsync(new OngoingChad { RoomId = gameId });
         }
-        catch (Exception ex) {
-            logger.LogError(ex, "Error while trying to match players");
-        }
-        finally {
-            Semaphore.Release();
-        }
+
+        // Remove matched players from the queue
+        foreach (var player in matchedPlayers) PlayerQueue.Remove(player);
     }
 
 
@@ -87,8 +78,8 @@ public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IV
 
     public async Task LeaveRoom(string roomId) {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
-        
-        await context.OngoingChads.Where(c => c.RoomId == roomId).ExecuteDeleteAsync();
+
+        //await context.OngoingChads.Where(c => c.RoomId == roomId).ExecuteDeleteAsync();
     }
 
     public async Task Next(string oldRoomId, string prevPlayerId) {
@@ -107,7 +98,7 @@ public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IV
     }
 
     private async Task UpdateStats(string p1Name, string p2Name) {
-        var p1 = await context.LeaderBoards
+        /*var p1 = await context.LeaderBoards
             .FirstOrDefaultAsync(p => p.PlayerName == p1Name);
         var p2 = await context.LeaderBoards
             .FirstOrDefaultAsync(p => p.PlayerName == p2Name);
@@ -116,7 +107,7 @@ public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IV
             p1 = new LeaderBoard {PlayerName = p1Name};
             context.LeaderBoards.Add(p1);
         }
-        
+
         if (p2 is null) {
             p2 = new LeaderBoard {PlayerName = p2Name};
             context.LeaderBoards.Add(p2);
@@ -125,7 +116,7 @@ public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IV
         p1.SkippedOthers++;
         p2.SkippedByOthers++;
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync();*/
     }
 }
 
