@@ -1,7 +1,6 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var sql = builder.AddSqlServerContainer("sql")
-    .WithVolumeMount("sqldata", "/var/opt/mssql/data")
+var sql = builder.AddSqlServer("sql")
     .AddDatabase("sqldata");
 
 var apiService =
