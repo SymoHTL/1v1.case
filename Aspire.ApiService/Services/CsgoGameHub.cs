@@ -78,3 +78,14 @@ public class CsgoGameHub(ILogger<CsgoGameHub> logger, IPlayerRepository playerRe
         await Clients.Group(player.GameId).PlayerLeft(Context.ConnectionId);
     }
 }
+
+public interface ICsgoClient {
+    Task StartRound(Dictionary<string, List<string>> results);
+    Task PlayerLeft(string contextConnectionId);
+    Task ReceiveReadyReset(List<string> toList, bool b);
+    Task ReceiveReadyChange(string contextConnectionId, bool playerReady);
+    Task ReceiveCaseChange(string contextConnectionId, string caseId);
+    Task SetLocalPlayer(Player player);
+    Task ReceiveBetChange(string contextConnectionId, float bet);
+    Task PlayerJoined(Player player);
+}
