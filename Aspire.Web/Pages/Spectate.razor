@@ -1,20 +1,55 @@
-﻿@page "/{string:roomCode}/spectate"
+﻿@page "/video/{RoomCode}/spectate"
 @inject IOptions<HubCfg> HubCfg
 @inject IJSRuntime JsRuntime
 @implements IAsyncDisposable
 
+@foreach (var otherPlayerId in Players) {
+    <canvas id="@otherPlayerId" width="640" height="480"></canvas>
+}
 
 @code {
     private HubConnection? _hubConnection;
 
-    public string[] Players { get; set; } = [];
+    [Parameter]
+    public string RoomCode { get; set; } = null!;
+
+    private string[] Players { get; set; } = [];
 
     protected override async Task OnParametersSetAsync() {
         _hubConnection = new HubConnectionBuilder()
             .WithUrl($"{HubCfg.Value.Url}/video")
             .Build();
 
+        _hubConnection.On<string[]>("Players", players => {
+            Players = players;
+            InvokeAsync(StateHasChanged);
+        });
+        
+        _hubConnection.On<string, byte[]>("ReceiveData", OnData);
+        
         await _hubConnection.StartAsync();
+
+        await _hubConnection.InvokeAsync("Spectate", RoomCode);
+
+
+        _hubConnection.Reconnecting += error => {
+            Console.WriteLine("Reconnecting...");
+            return Task.CompletedTask;
+        };
+
+        _hubConnection.Reconnected += connectionId => {
+            Console.WriteLine("Reconnected.");
+            return Task.CompletedTask;
+        };
+
+        _hubConnection.Closed += error => {
+            Console.WriteLine("Connection closed.");
+            return Task.CompletedTask;
+        };
+    }
+    
+    private async Task OnData(string playerId, byte[] data) {
+        await JsRuntime.InvokeVoidAsync("renderFrame", playerId, data);
     }
 
     public async ValueTask DisposeAsync() {

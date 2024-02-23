@@ -74,7 +74,6 @@
             _hubConnection.On<string, string>("MatchFound", OnGameFound);
             _hubConnection.On("Skipped", Next);
             _hubConnection.On("Stop", Stop);
-            _hubConnection.On<string>("PlayerJoined", OnPlayerJoined); 
             _hubConnection.On<string>("PlayerLeft", OnPlayerLeft);
 
             await _hubConnection.StartAsync();
@@ -132,10 +131,6 @@
         await InvokeAsync(StateHasChanged);
     }
     
-    public async Task OnPlayerJoined(string otherPlayerId) {
-        
-    }
-
     [JSInvokable]
     public async Task SendData(byte[] data) {
         if (_hubConnection?.State != HubConnectionState.Connected) {

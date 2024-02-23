@@ -62,7 +62,11 @@ public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IV
             await Clients.Client(player).MatchFound(gameId, otherPlayer.Key);
             await Clients.Client(otherPlayer.Key).MatchFound(gameId, player);
 
-            await context.OngoingChads.AddAsync(new OngoingChad { RoomId = gameId });
+            await context.OngoingChads.AddAsync(new OngoingChad {
+                RoomId = gameId,
+                Player1 = player,
+                Player2 = otherPlayer.Key
+            });
             await context.SaveChangesAsync();
         }
 
@@ -70,8 +74,11 @@ public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IV
         foreach (var player in matchedPlayers) PlayerQueue.Remove(player);
     }
 
-    
+
     public async Task Spectate(string gameId) {
+        var chad = await context.OngoingChads.FirstOrDefaultAsync(c => c.RoomId == gameId);
+        if (chad is null) return;
+        await Clients.Caller.PlayerList([chad.Player1, chad.Player2]);
         await Groups.AddToGroupAsync(Context.ConnectionId, gameId);
     }
 
@@ -135,6 +142,8 @@ public interface IVideoClient {
     Task MatchFound(string gameId, string otherPlayerId);
 
     Task Stop();
-    
+
+    Task PlayerList(string[] players);
+
     Task PlayerLeft(string playerId);
 }

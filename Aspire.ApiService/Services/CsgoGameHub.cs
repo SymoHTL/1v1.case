@@ -1,6 +1,6 @@
 ﻿namespace Aspire.ApiService.Services;
 
-public class CsgoGameHub(ILogger<CsgoGameHub> logger, IPlayerRepository playerRepository, HttpClient csgoClient, CsgoService service)
+public class CsgoGameHub(ILogger<CsgoGameHub> logger, IPlayerRepository playerRepository, HttpClient csgoClient)
     : Hub<ICsgoClient> {
     public async Task JoinGame(string gameId, string playerName) {
         logger.LogInformation("Player {ConnectionId} joined game {GameId}", Context.ConnectionId, gameId);
