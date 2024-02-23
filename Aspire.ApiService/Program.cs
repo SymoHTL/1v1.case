@@ -51,12 +51,15 @@ app.MapGet("api/leaderboard", async (ModelDbContext context) =>
 app.MapGet("api/ongoingchad", async (ModelDbContext context) =>
     Results.Ok((object?)await context.OngoingChads.ToListAsync()));
 
+using var scope = app.Services.CreateScope();
+var context = scope.ServiceProvider.GetRequiredService<ModelDbContext>();
+
+await context.OngoingChads.ExecuteDeleteAsync();
 if (app.Environment.IsDevelopment()) {
     app.UseSwagger();
     app.UseSwaggerUI();
     
-    using var scope = app.Services.CreateScope();
-    var context = scope.ServiceProvider.GetRequiredService<ModelDbContext>();
+    
     context.Database.EnsureCreated();
 }
 else {

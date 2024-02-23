@@ -1,6 +1,6 @@
 ﻿namespace Aspire.ApiService.Services;
 
-public class VideoHub( ModelDbContext context, ILogger<VideoHub> logger) : Hub<IVideoClient> {
+public class VideoHub(ModelDbContext context, ILogger<VideoHub> logger) : Hub<IVideoClient> {
     private static readonly Dictionary<string, string?> PlayerQueue = [];
     private static readonly SemaphoreSlim Semaphore = new(1, 1);
     private static readonly Dictionary<string, string> PlayerNames = new();
@@ -11,13 +11,17 @@ public class VideoHub( ModelDbContext context, ILogger<VideoHub> logger) : Hub<I
             PlayerQueue.TryAdd(Context.ConnectionId, previousPlayer);
             PlayerNames[Context.ConnectionId] = playerName;
 
+            logger.LogInformation("Players in the queue: {PlayerCount}, {Players}", PlayerQueue.Count,
+                PlayerQueue.Keys);
+
+
             await TryMatchPlayers();
         }
         finally {
             Semaphore.Release();
         }
 
-        logger.LogInformation("Currently {PlayerCount} players in the queue", PlayerQueue.Count);
+        logger.LogInformation("After matching {PlayerCount} players in the queue", PlayerQueue.Count);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception) {
@@ -66,17 +70,21 @@ public class VideoHub( ModelDbContext context, ILogger<VideoHub> logger) : Hub<I
         foreach (var player in matchedPlayers) PlayerQueue.Remove(player);
     }
 
+    
+    public async Task Spectate(string gameId) {
+        await Groups.AddToGroupAsync(Context.ConnectionId, gameId);
+    }
 
     public async Task JoinRoom(string roomId) {
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
     }
 
     public async Task SendData(byte[] data, string roomId) {
-        await Clients.OthersInGroup(roomId).ReceiveData(data);
+        await Clients.OthersInGroup(roomId).ReceiveData(Context.ConnectionId, data);
     }
 
     public async Task LeaveRoom(string roomId) {
-        await Clients.Group(roomId).Stop();
+        await Clients.OthersInGroup(roomId).PlayerLeft(Context.ConnectionId);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
 
         await context.OngoingChads.Where(c => c.RoomId == roomId).ExecuteDeleteAsync();
@@ -93,7 +101,7 @@ public class VideoHub( ModelDbContext context, ILogger<VideoHub> logger) : Hub<I
         finally {
             Semaphore.Release();
         }
-        
+
         await LeaveRoom(oldRoomId);
         await JoinQueue(p1Name, prevPlayerId);
         await UpdateStats(p1Name, p2Name);
@@ -106,12 +114,12 @@ public class VideoHub( ModelDbContext context, ILogger<VideoHub> logger) : Hub<I
             .FirstOrDefaultAsync(p => p.PlayerName == p2Name);
 
         if (p1 is null) {
-            p1 = new LeaderBoard {PlayerName = p1Name};
+            p1 = new LeaderBoard { PlayerName = p1Name };
             context.LeaderBoards.Add(p1);
         }
 
         if (p2 is null) {
-            p2 = new LeaderBoard {PlayerName = p2Name};
+            p2 = new LeaderBoard { PlayerName = p2Name };
             context.LeaderBoards.Add(p2);
         }
 
@@ -123,8 +131,10 @@ public class VideoHub( ModelDbContext context, ILogger<VideoHub> logger) : Hub<I
 }
 
 public interface IVideoClient {
-    Task ReceiveData(byte[] data);
+    Task ReceiveData(string connId, byte[] data);
     Task MatchFound(string gameId, string otherPlayerId);
-    
+
     Task Stop();
+    
+    Task PlayerLeft(string playerId);
 }

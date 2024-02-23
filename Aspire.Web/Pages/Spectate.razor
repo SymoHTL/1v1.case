@@ -1,0 +1,24 @@
+﻿@page "/{string:roomCode}/spectate"
+@inject IOptions<HubCfg> HubCfg
+@inject IJSRuntime JsRuntime
+@implements IAsyncDisposable
+
+
+@code {
+    private HubConnection? _hubConnection;
+
+    public string[] Players { get; set; } = [];
+
+    protected override async Task OnParametersSetAsync() {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl($"{HubCfg.Value.Url}/video")
+            .Build();
+
+        await _hubConnection.StartAsync();
+    }
+
+    public async ValueTask DisposeAsync() {
+        if (_hubConnection is not null) await _hubConnection.DisposeAsync();
+    }
+
+}

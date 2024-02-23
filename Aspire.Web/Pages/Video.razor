@@ -29,7 +29,9 @@
                 <video id="localVideo" autoplay muted></video>
             </MudItem>
             <MudItem xs="6">
-                <canvas id="remoteVideo" width="640" height="480"></canvas>
+                @foreach(var otherPlayerId in OtherPlayerIds) {
+                     <canvas id="@otherPlayerId" width="640" height="480"></canvas>
+                }
             </MudItem>
         </MudGrid>
         <MudItem xs="12">
@@ -58,6 +60,8 @@
     private string PlayerName { get; set; } = null!;
     private string? OtherPlayerId { get; set; }
 
+    public string[] OtherPlayerIds { get; set; } = [];
+
     private EGameState State { get; set; }
 
     protected override async Task OnInitializedAsync() {
@@ -66,10 +70,12 @@
                 .WithUrl($"{HubCfg.Value.Url}/video")
                 .Build();
 
-            _hubConnection.On<byte[]>("ReceiveData", OnData);
+            _hubConnection.On<string, byte[]>("ReceiveData", OnData);
             _hubConnection.On<string, string>("MatchFound", OnGameFound);
             _hubConnection.On("Skipped", Next);
             _hubConnection.On("Stop", Stop);
+            _hubConnection.On<string>("PlayerJoined", OnPlayerJoined); 
+            _hubConnection.On<string>("PlayerLeft", OnPlayerLeft);
 
             await _hubConnection.StartAsync();
         }
@@ -99,10 +105,9 @@
             await _form.Validate();
             if (!_form.IsValid) return;
             Console.WriteLine("Searching match");
-            
+
             UpdateState(EGameState.WaitingForPlayer);
             await _hubConnection!.InvokeAsync("JoinQueue", PlayerName, OtherPlayerId);
-            
         }
         catch (Exception e) {
             Console.WriteLine($"Error in SearchMatch: {e.Message}");
@@ -114,15 +119,21 @@
         InvokeAsync(StateHasChanged);
         Console.WriteLine($"State changed to {newState}");
     }
+
     private async Task OnGameFound(string roomId, string otherPlayerId) {
         Console.WriteLine("Game found");
         OtherPlayerId = otherPlayerId;
+        OtherPlayerIds = [otherPlayerId];
         UpdateState(EGameState.JoiningGame);
         RoomId = roomId;
         await _hubConnection!.SendAsync("JoinRoom", RoomId);
         UpdateState(EGameState.InGame);
         await JsRuntime.InvokeVoidAsync("localVideo", DotNetObjectReference.Create(this), "localVideo", "start");
         await InvokeAsync(StateHasChanged);
+    }
+    
+    public async Task OnPlayerJoined(string otherPlayerId) {
+        
     }
 
     [JSInvokable]
@@ -136,8 +147,14 @@
         await _hubConnection!.SendAsync("SendData", data, RoomId);
     }
 
-    private async Task OnData(byte[] data) {
-        await JsRuntime.InvokeVoidAsync("renderFrame", "remoteVideo", data);
+    private async Task OnData(string playerId, byte[] data) {
+        await JsRuntime.InvokeVoidAsync("renderFrame", playerId, data);
+    }
+    
+    private async Task OnPlayerLeft(string playerId) {
+        OtherPlayerIds = OtherPlayerIds.Where(id => id != playerId).ToArray();
+        if (OtherPlayerIds.Length == 0) await Next();
+        
     }
 
     private async Task Stop() {
@@ -145,7 +162,6 @@
         await _hubConnection!.SendAsync("LeaveRoom", RoomId);
         UpdateState(EGameState.Idle);
         await InvokeAsync(StateHasChanged);
-        await OnInitializedAsync();
     }
 
     private async Task Next() {

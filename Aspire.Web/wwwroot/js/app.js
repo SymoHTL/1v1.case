@@ -61,50 +61,58 @@ function renderFrame(canvasId, data) {
 }
 
 
-let canvas, context;
-let frameBuffer = [];
 const frameRate = 30; // Desired frame rate, e.g., 30 frames per second
 const frameRenderInterval = 1000 / frameRate; // Calculate interval in ms
 
-let renderingStarted = false;
-let currentObjectURL = null; // Keep track of the current Object URL
-let renderImage = new Image();
+let frameBuffer = {};
+let renderingStarted = {}
+let intervals = {}
+
+window.clearCanvas = function (canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    console.log(`Canvas ${canvasId} cleared.`);
+}
 
 
 window.renderFrame = function (canvasId, data) {
-    frameBuffer.push({ canvasId, data });
-    if (!canvas) {
-        canvas = document.getElementById(canvasId);
-        context = canvas.getContext('2d');
+    if (!frameBuffer[canvasId]) {
+        frameBuffer[canvasId] = [];
     }
+    frameBuffer[canvasId].push(data);
 
-    if (!renderingStarted) {
-        renderingStarted = true;
-        setInterval(renderFromBuffer, frameRenderInterval);
-    }
-};
-
-window.clearCanvas = function (canvasId) {
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    console.log(`Canvas ${canvasId} cleared.`);
-    canvas = null;
-    context = null; 
-}
-
-renderImage.onload = function () {
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(renderImage, 0, 0, canvas.width, canvas.height);
-    if (currentObjectURL) {
-        URL.revokeObjectURL(currentObjectURL); // Revoke the previous Object URL
+    if (!renderingStarted[canvasId]) {
+        intervals[canvasId] = setInterval(function () {
+            renderFromBuffer(canvasId);
+        }, frameRenderInterval);
     }
 };
 
-function renderFromBuffer() {
-    if (frameBuffer.length > 0) {
-        const frame = frameBuffer.shift();
-        const blob = new Blob([frame.data], {type: 'image/jpeg'});
-        currentObjectURL = URL.createObjectURL(blob); // Update current Object URL
-        renderImage.src = currentObjectURL;
+
+function renderFromBuffer(canvasId) {
+    const buffer = frameBuffer[canvasId];
+    if (buffer && buffer.length > 0) {
+        const data = buffer.shift();
+        if (!data) {
+            console.error('Invalid or empty data in buffer.');
+            return;
+        }
+
+        const blob = new Blob([data], {type: 'image/jpeg'});
+        const currentObjectURL = URL.createObjectURL(blob);
+        const image = new Image();
+        image.onload = function () {
+            const canvas = document.getElementById(canvasId);
+            const context = canvas.getContext('2d');
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(currentObjectURL);
+        };
+        image.onerror = function () {
+            console.error('Error loading image.');
+        };
+        image.src = currentObjectURL;
     }
 }
 
@@ -138,8 +146,15 @@ window.localVideo = function (dotNetReference, elemId, command) {
         } else {
             stop = true;
             videoElem.pause();
-            videoElem.srcObject.getTracks().forEach(track => track.stop());
-            window.clearCanvas(elemId)
+            if (videoElem.srcObject)
+                videoElem.srcObject.getTracks().forEach(track => track.stop());
+            for (let canvasId in intervals) {
+                console.log(`Clearing canvas ${canvasId} and stopping interval.`);
+                clearCanvas(canvasId);
+                clearInterval(intervals[canvasId]);
+            }
+            renderingStarted = {};
+            frameBuffer = {};
             console.log('Video capture stopped.');
             canvas = null;
             context = null;
